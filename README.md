@@ -28,9 +28,9 @@ room-set/
 │   ├── admin.js                Admin panel logic
 │   ├── user.js                 Visitor view logic
 │   └── push.js                 FCM token registration
-├── icons/                      Generated PNG/SVG icons
+├── icons/                      App icons (icon-512.png is the source artwork)
 ├── tools/
-│   └── make-icons.ps1          Regenerates the PNG icons (Windows)
+│   └── make-icons.ps1          Regenerates every icon from icons/icon-512.png
 └── supabase/
     ├── schema.sql              Tables, RLS, Realtime, push trigger
     └── functions/
@@ -322,6 +322,9 @@ order by created_at desc;
 
 **Icons look wrong on Android**
 - `icon-maskable-512.png` has the safe-zone padding. Regenerate with `tools/make-icons.ps1` if you change the artwork.
+
+**Changing the app logo**
+- `icons/icon-512.png` is the single source of truth. Replace it, then run `tools/make-icons.ps1`. It derives `icon-192.png`, `icon-maskable-512.png` (scaled to 80% on white), `apple-touch-icon.png` (180×180) and `favicon-32.png`. Then bump `CACHE_VERSION` in `sw.js` and the `?v=` query on `js/config.js` in both HTML pages.
 
 ---
 

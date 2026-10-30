@@ -18,10 +18,6 @@ import {
   saveDeviceToken,
 } from "./core.js";
 
-/* =========================================================================
-   RoomSet — FCM registration (admin device)
-   ========================================================================= */
-
 let messaging = null;
 let listeners = { onForeground: null, onState: null };
 let currentState = "idle";
@@ -50,11 +46,6 @@ function ensureMessaging() {
   return messaging;
 }
 
-/**
- * Ask FCM for this device's registration token and persist it in Supabase.
- * This is the only place that calls getToken(), so every successful
- * registration goes through the devices-table insert.
- */
 async function registerToken() {
   if (registrationPromise) return registrationPromise;
 
@@ -87,10 +78,6 @@ async function registerToken() {
   }
 }
 
-/**
- * Initialise the FCM state machine.
- * Returns an object with `enable()` and `getState()`.
- */
 export async function initPush(options = {}) {
   listeners = { ...listeners, ...options };
 
@@ -120,7 +107,6 @@ export async function initPush(options = {}) {
   }
 
   if (Notification.permission === "granted") {
-    // Silent re-registration keeps the token fresh on every app launch.
     registerToken()
       .then(() => setState("granted"))
       .catch((error) => {
@@ -152,7 +138,6 @@ export async function initPush(options = {}) {
     }
 
     try {
-      // Permission is granted — fetch the token and insert it into Supabase.
       await registerToken();
       setState("granted");
       return true;

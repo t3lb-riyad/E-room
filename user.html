@@ -11,9 +11,10 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
 
   <link rel="manifest" href="manifest-user.webmanifest">
-  <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -41,7 +42,9 @@
 
     <header class="app-header">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true"><span class="brand-led"></span></span>
+        <span class="brand-mark" aria-hidden="true">
+          <img src="icons/icon-192.png" alt="" width="46" height="46" decoding="async">
+        </span>
         <div class="brand-text">
           <p class="brand-eyebrow"></p>
           <h1 class="brand-title">موقع رياض</h1>
@@ -114,7 +117,7 @@
     <div class="noscript">هذه الصفحة تحتاج إلى JavaScript لعرض الحالة وإرسال التنبيه.</div>
   </noscript>
 
-  <script src="js/config.js?v=1.2.0"></script>
+  <script src="js/config.js?v=1.3.0"></script>
   <script type="module" src="js/user.js"></script>
 </body>
 </html>

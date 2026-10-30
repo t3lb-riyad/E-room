@@ -17,10 +17,6 @@ import {
   toast,
 } from "./ui.js";
 
-/* =========================================================================
-   RoomSet — public visitor view (user.html)
-   ========================================================================= */
-
 const COOLDOWN_KEY = "roomset:cooldown-until";
 
 const els = {
@@ -69,8 +65,6 @@ function boot() {
 
   els.fab.addEventListener("click", handlePing);
 
-  // Offline / blocked Supabase fallback: show the default state instead of
-  // leaving the hero on its loading text forever.
   window.setTimeout(() => {
     if (state.ready) return;
     render({ status: DEFAULT_STATUS.id, updated_at: null });
@@ -130,10 +124,6 @@ function render(row) {
   }
 }
 
-/* -------------------------------------------------------------------------
-   Sending a ping
-   ------------------------------------------------------------------------- */
-
 async function handlePing() {
   if (sending) return;
 
@@ -147,7 +137,7 @@ async function handlePing() {
 
   sending = true;
   els.fab.classList.remove("is-sending");
-  void els.fab.offsetWidth; // restart the bell animation
+  void els.fab.offsetWidth;
   els.fab.classList.add("is-sending");
   navigator.vibrate?.(14);
   tickCooldown();
@@ -158,9 +148,7 @@ async function handlePing() {
     cooldownUntil = Date.now() + APP_SETTINGS.pingCooldownMs;
     try {
       localStorage.setItem(COOLDOWN_KEY, String(cooldownUntil));
-    } catch {
-      /* ignore */
-    }
+    } catch {}
 
     toast("تم إرسال التنبيه بنجاح ✓", { type: "success" });
 

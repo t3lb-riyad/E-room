@@ -1,14 +1,4 @@
--- =========================================================================
--- RoomSet — Supabase schema
--- Run this whole file in the Supabase SQL editor (once).
--- =========================================================================
-
--- Needed to call the push Edge Function from a database trigger.
 create extension if not exists pg_net with schema extensions;
-
--- -------------------------------------------------------------------------
--- Tables
--- -------------------------------------------------------------------------
 
 create table if not exists public.admin_status (
   id smallint primary key default 1,
@@ -43,10 +33,6 @@ create table if not exists public.notifications (
 create index if not exists notifications_created_at_idx
   on public.notifications (created_at desc);
 
--- -------------------------------------------------------------------------
--- Server-side updated_at
--- -------------------------------------------------------------------------
-
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -61,14 +47,6 @@ drop trigger if exists admin_status_set_updated_at on public.admin_status;
 create trigger admin_status_set_updated_at
   before insert or update on public.admin_status
   for each row execute function public.set_updated_at();
-
--- -------------------------------------------------------------------------
--- Row Level Security
---
--- NOTE: this personal-app setup trusts the anon key for writes.
--- If you deploy this publicly, replace these policies with Supabase Auth
--- based ones (see README "Security hardening").
--- -------------------------------------------------------------------------
 
 alter table public.admin_status enable row level security;
 alter table public.devices enable row level security;
@@ -112,15 +90,10 @@ create policy "notifications_create"
   to anon, authenticated
   with check (true);
 
--- Explicit grants (Supabase usually sets these by default).
 grant usage on schema public to anon, authenticated;
 grant select, insert, update on public.admin_status to anon, authenticated;
 grant insert, update on public.devices to anon, authenticated;
 grant insert on public.notifications to anon, authenticated;
-
--- -------------------------------------------------------------------------
--- Realtime (admin_status only — it powers the live status sync)
--- -------------------------------------------------------------------------
 
 do $$
 begin
@@ -135,16 +108,11 @@ begin
   end if;
 end $$;
 
--- -------------------------------------------------------------------------
--- Ping throttling (defence in depth — the client also has a cooldown)
--- -------------------------------------------------------------------------
-
 create or replace function public.throttle_pings()
 returns trigger
 language plpgsql
 as $$
 begin
-  -- Serialise concurrent inserts so two visitors cannot race past the check.
   perform pg_advisory_xact_lock(918273645);
 
   if exists (
@@ -163,25 +131,6 @@ drop trigger if exists notifications_throttle on public.notifications;
 create trigger notifications_throttle
   before insert on public.notifications
   for each row execute function public.throttle_pings();
-
--- -------------------------------------------------------------------------
--- Push trigger
---
--- Before this works:
---   1. Deploy supabase/functions/send-push with --no-verify-jwt.
---   2. Store two secrets in Vault (SQL editor), for example:
---
---      select vault.create_secret(
---        'https://<PROJECT-REF>.supabase.co/functions/v1/send-push',
---        'push_function_url'
---      );
---      select vault.create_secret(
---        '<the same random string used for WEBHOOK_SECRET>',
---        'push_webhook_secret'
---      );
---
---   If the secrets already exist, use vault.update_secret(id, value).
--- -------------------------------------------------------------------------
 
 create or replace function public.notify_admin_push()
 returns trigger
@@ -224,12 +173,3 @@ drop trigger if exists notifications_push on public.notifications;
 create trigger notifications_push
   after insert on public.notifications
   for each row execute function public.notify_admin_push();
-
--- -------------------------------------------------------------------------
--- Optional housekeeping (enable pg_cron first if you want this)
--- -------------------------------------------------------------------------
--- select cron.schedule(
---   'roomset-cleanup',
---   '0 4 * * *',
---   $$delete from public.notifications where created_at < now() - interval '30 days';$$
--- );

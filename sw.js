@@ -1,12 +1,5 @@
-/* =========================================================================
-   RoomSet — service worker
-   Handles: app-shell caching, offline fallback, and FCM background messages.
-   ========================================================================= */
+const CACHE_VERSION = "roomset-v1.3.0";
 
-const CACHE_VERSION = "roomset-v1.2.0";
-
-// Config changes must not be masked by the old app-shell cache. The query
-// string forces a fresh fetch when the service worker updates.
 importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
 importScripts("./js/config.js?v=" + CACHE_VERSION);
@@ -25,7 +18,6 @@ const PRECACHE_URLS = [
   "./js/push.js",
   "./manifest.webmanifest",
   "./manifest-user.webmanifest",
-  "./icons/favicon.svg",
   "./icons/favicon-32.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -40,10 +32,6 @@ const CDN_HOSTS = new Set([
   "www.gstatic.com",
   "cdn.jsdelivr.net",
 ]);
-
-/* -------------------------------------------------------------------------
-   Lifecycle
-   ------------------------------------------------------------------------- */
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -79,10 +67,6 @@ self.addEventListener("message", (event) => {
   }
 });
 
-/* -------------------------------------------------------------------------
-   Fetch strategies
-   ------------------------------------------------------------------------- */
-
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -103,7 +87,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Never serve a stale config from the cache-first app shell.
   if (
     url.origin === self.location.origin &&
     url.pathname.endsWith("/js/config.js")
@@ -197,10 +180,6 @@ function handleAsset(event) {
   event.waitUntil(networkPromise.then(() => undefined));
 }
 
-/* -------------------------------------------------------------------------
-   Firebase Cloud Messaging (background)
-   ------------------------------------------------------------------------- */
-
 const firebaseConfig = (self.APP_CONFIG && self.APP_CONFIG.firebase) || {};
 const hasFirebaseConfig =
   firebaseConfig.apiKey &&
@@ -215,7 +194,6 @@ if (hasFirebaseConfig) {
     const messaging = firebase.messaging();
 
     messaging.onBackgroundMessage((payload) => {
-      // Notification payloads are displayed by the SDK automatically.
       if (payload && payload.notification) return;
 
       const data = (payload && payload.data) || {};

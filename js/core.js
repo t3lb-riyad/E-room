@@ -1,12 +1,5 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 
-/* =========================================================================
-   RoomSet — shared data layer
-   Works against Supabase when configured, and falls back to a local demo
-   mode (localStorage + BroadcastChannel) so the UI can be previewed before
-   credentials are added.
-   ========================================================================= */
-
 export const STATUSES = Object.freeze([
   {
     id: "in_room",
@@ -74,8 +67,6 @@ function isRealFirebaseValue(value) {
   return typeof value === "string" && value.length > 0 && !PLACEHOLDER.test(value);
 }
 
-// Firebase itself can initialise with the web app config. Web push additionally
-// needs the VAPID key pair from Cloud Messaging -> Web Push certificates.
 export const isFirebaseAppConfigured = Boolean(
   isRealFirebaseValue(FB.apiKey) &&
     isRealFirebaseValue(FB.projectId) &&
@@ -84,10 +75,6 @@ export const isFirebaseAppConfigured = Boolean(
 );
 
 export const hasVapidKey = isRealFirebaseValue(FB.vapidKey);
-
-/* -------------------------------------------------------------------------
-   Supabase client
-   ------------------------------------------------------------------------- */
 
 let supabase = null;
 
@@ -110,10 +97,6 @@ export function getSupabase() {
   return supabase;
 }
 
-/* -------------------------------------------------------------------------
-   Demo mode helpers
-   ------------------------------------------------------------------------- */
-
 const DEMO_STATUS_KEY = "roomset:demo:status";
 const DEMO_PING_KEY = "roomset:demo:pings";
 const DEMO_EVENT = "roomset:demo-status";
@@ -124,25 +107,17 @@ function demoRead() {
   try {
     const raw = localStorage.getItem(DEMO_STATUS_KEY);
     if (raw) return normalizeStatus(JSON.parse(raw));
-  } catch {
-    /* ignore malformed storage */
-  }
+  } catch {}
   return { status: DEFAULT_STATUS.id, updated_at: null };
 }
 
 function demoWrite(row) {
   try {
     localStorage.setItem(DEMO_STATUS_KEY, JSON.stringify(row));
-  } catch {
-    /* storage can be unavailable in private mode */
-  }
+  } catch {}
   window.dispatchEvent(new CustomEvent(DEMO_EVENT, { detail: row }));
   demoChannel?.postMessage(row);
 }
-
-/* -------------------------------------------------------------------------
-   Status reads / writes
-   ------------------------------------------------------------------------- */
 
 export function normalizeStatus(row) {
   const status = STATUSES.some((item) => item.id === row?.status)
@@ -192,10 +167,6 @@ export async function setStatus(statusId) {
   if (error) throw error;
   return normalizeStatus(data);
 }
-
-/* -------------------------------------------------------------------------
-   Realtime subscription
-   ------------------------------------------------------------------------- */
 
 function subscribeStatus(onStatus, onConnection) {
   if (!supabase) {
@@ -247,10 +218,6 @@ function subscribeStatus(onStatus, onConnection) {
   };
 }
 
-/**
- * Watch the admin status through realtime + a low-frequency polling fallback.
- * Returns an unsubscribe function.
- */
 export function watchStatus({ onStatus, onConnection } = {}) {
   let active = true;
 
@@ -300,10 +267,6 @@ export function watchStatus({ onStatus, onConnection } = {}) {
   };
 }
 
-/* -------------------------------------------------------------------------
-   Visitor ping + device registration
-   ------------------------------------------------------------------------- */
-
 export async function sendPing(message = null, type = "ping") {
   if (!supabase) {
     await new Promise((resolve) => setTimeout(resolve, 420));
@@ -316,9 +279,7 @@ export async function sendPing(message = null, type = "ping") {
         created_at: new Date().toISOString(),
       });
       localStorage.setItem(DEMO_PING_KEY, JSON.stringify(list.slice(0, 25)));
-    } catch {
-      /* ignore */
-    }
+    } catch {}
     return { demo: true };
   }
 
@@ -340,13 +301,10 @@ export async function saveDeviceToken(token, role = "admin") {
     last_seen_at: new Date().toISOString(),
   };
 
-  // Insert first: this is the normal path for a newly registered device.
   const { error } = await supabase.from(TABLES.devices).insert(device);
 
   if (!error) return { ok: true, inserted: true };
 
-  // `token` is unique. If this browser has registered before, refresh the
-  // existing row instead of failing the whole FCM registration.
   if (error.code === "23505" || /duplicate key/i.test(error.message || "")) {
     const { error: updateError } = await supabase
       .from(TABLES.devices)
@@ -363,10 +321,6 @@ export async function saveDeviceToken(token, role = "admin") {
 
   throw error;
 }
-
-/* -------------------------------------------------------------------------
-   Formatting + service worker
-   ------------------------------------------------------------------------- */
 
 const relativeFormatter =
   typeof Intl !== "undefined" && Intl.RelativeTimeFormat
@@ -424,8 +378,6 @@ export async function initServiceWorker() {
       scope: "./",
     });
 
-    // getToken() needs an active worker. On a first install the registration
-    // can still be installing, so wait briefly (but never block forever).
     if (!swRegistration.active) {
       await Promise.race([
         navigator.serviceWorker.ready,

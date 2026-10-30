@@ -1,9 +1,5 @@
 import { STATUSES, statusById } from "./core.js";
 
-/* =========================================================================
-   RoomSet — shared UI helpers
-   ========================================================================= */
-
 const CHECK_ICON = `
   <svg viewBox="0 0 24 24" width="13" height="13" fill="none"
        stroke="currentColor" stroke-width="2.8" stroke-linecap="round"
@@ -43,7 +39,6 @@ export function statusButton(status, options = {}) {
   return el;
 }
 
-/** Build the four admin choices once, then update them in place. */
 export function buildStatusList(container, { onSelect } = {}) {
   container.replaceChildren(
     ...STATUSES.map((status) => {

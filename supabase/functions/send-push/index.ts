@@ -1,17 +1,3 @@
-// =========================================================================
-// RoomSet — Supabase Edge Function: send-push
-// Sends an FCM HTTP v1 push to every registered admin device.
-//
-// Deploy:
-//   supabase functions deploy send-push --no-verify-jwt
-//
-// Required function secrets:
-//   FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY,
-//   WEBHOOK_SECRET, SITE_URL
-// (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided automatically.)
-// =========================================================================
-
-// deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const CORS_HEADERS: Record<string, string> = {
@@ -51,10 +37,6 @@ interface PushResult {
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
-/* -------------------------------------------------------------------------
-   Helpers
-   ------------------------------------------------------------------------- */
-
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -92,10 +74,6 @@ function pemToDer(pem: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-/* -------------------------------------------------------------------------
-   Google OAuth (service account -> FCM access token)
-   ------------------------------------------------------------------------- */
-
 async function getAccessToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
     return cachedToken.value;
@@ -115,9 +93,6 @@ async function getAccessToken(): Promise<string> {
 
   const unsigned = `${header}.${claims}`;
 
-  // The JWT header uses the JOSE name "RS256", but Web Crypto expects the
-  // underlying algorithm name "RSASSA-PKCS1-v1_5". Passing "RS256" here is
-  // what causes Deno's NotSupportedError / Unrecognized algorithm name.
   const key = await crypto.subtle.importKey(
     "pkcs8",
     pemToDer(PRIVATE_KEY),
@@ -155,15 +130,6 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-/* -------------------------------------------------------------------------
-   FCM send
-   ------------------------------------------------------------------------- */
-
-/**
- * FCM HTTP v1 requires every value in `message.data` to be a JSON string.
- * Anything else (a number, boolean, null, nested object…) is rejected with
- * `Invalid value at 'message.data[N].value' (TYPE_STRING)`.
- */
 function dataString(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
@@ -197,8 +163,6 @@ async function sendToToken(
   const icon = absoluteSiteUrl("icons/icon-192.png");
   const badge = absoluteSiteUrl("icons/badge-72.png");
 
-  // Every value must be a string — this is the most common cause of the
-  // 400 "Invalid value at 'message.data[N].value' (TYPE_STRING)" error.
   const data: Record<string, string> = {
     title: dataString(title),
     body: dataString(body),
@@ -250,10 +214,8 @@ async function sendToToken(
   try {
     payload = JSON.parse(text);
   } catch {
-    // keep raw text
   }
 
-  // Pull out the exact offending field so the logs are actionable.
   const details: any[] = Array.isArray(payload?.error?.details)
     ? payload.error.details
     : [];
@@ -280,10 +242,6 @@ async function sendToToken(
     error: (field ? `${field}: ${description || text}` : text).slice(0, 500),
   };
 }
-
-/* -------------------------------------------------------------------------
-   HTTP handler
-   ------------------------------------------------------------------------- */
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {

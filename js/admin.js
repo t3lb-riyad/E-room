@@ -14,10 +14,6 @@ import {
 } from "./ui.js";
 import { initPush } from "./push.js";
 
-/* =========================================================================
-   RoomSet — admin panel (index.html)
-   ========================================================================= */
-
 const els = {
   list: document.getElementById("status-list"),
   conn: document.getElementById("conn-pill"),
@@ -107,7 +103,6 @@ async function boot() {
   setupPush();
   setupInstall();
 
-  // If Supabase is unreachable, never leave the panel stuck on skeletons.
   window.setTimeout(() => {
     if (state.ready) return;
     state.ready = true;
@@ -128,7 +123,6 @@ async function boot() {
 function applyStatus(row) {
   if (!row) return;
 
-  // While a write is in flight, ignore stale realtime echoes.
   if (state.pending && row.status !== state.pending) return;
 
   state.current = row;
@@ -183,10 +177,6 @@ async function handleSelect(status) {
     state.busy = false;
   }
 }
-
-/* -------------------------------------------------------------------------
-   Push notifications
-   ------------------------------------------------------------------------- */
 
 async function setupPush() {
   if (!els.pushBtn) return;
@@ -264,10 +254,6 @@ function updatePushUI(pushState, detail) {
       pushState === "error" ? pushErrorMessage(detail) : ui.note;
   }
 }
-
-/* -------------------------------------------------------------------------
-   Install prompt (PWA)
-   ------------------------------------------------------------------------- */
 
 function setupInstall() {
   if (!els.installBtn) return;
