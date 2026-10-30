@@ -295,6 +295,13 @@ from public.devices
 order by created_at desc;
 ```
 
+**`send-push` returns 500: “Unrecognized algorithm name”**
+- This comes from the Google OAuth JWT signing step. The JWT header correctly uses `alg: "RS256"`, but Web Crypto's `importKey()` / `sign()` must use `RSASSA-PKCS1-v1_5` with `hash: "SHA-256"`.
+- The function in this repo is already fixed. If you deployed an older copy, redeploy:
+  ```bash
+  supabase functions deploy send-push --no-verify-jwt
+  ```
+
 **“RATE_LIMITED” toast**
 - The Postgres trigger allows one ping every 8 seconds. The client cooldown is 20 seconds by default; adjust both if needed.
 

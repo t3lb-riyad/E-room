@@ -113,15 +113,19 @@ async function getAccessToken(): Promise<string> {
   );
 
   const unsigned = `${header}.${claims}`;
+
+  // The JWT header uses the JOSE name "RS256", but Web Crypto expects the
+  // underlying algorithm name "RSASSA-PKCS1-v1_5". Passing "RS256" here is
+  // what causes Deno's NotSupportedError / Unrecognized algorithm name.
   const key = await crypto.subtle.importKey(
     "pkcs8",
     pemToDer(PRIVATE_KEY),
-    { name: "RS256", hash: "SHA-256" },
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"],
   );
   const signature = await crypto.subtle.sign(
-    "RS256",
+    { name: "RSASSA-PKCS1-v1_5" },
     key,
     encoder.encode(unsigned),
   );
