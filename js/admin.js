@@ -35,6 +35,7 @@ const state = {
   busy: false,
   ready: false,
   push: null,
+  pushDetail: null,
 };
 
 const PUSH_UI = {
@@ -52,7 +53,7 @@ const PUSH_UI = {
     label: "الإشعارات مفعّلة",
     disabled: true,
     on: true,
-    note: "سيصل تنبيه إلى هذا الجهاز عندما ينبّهك أحد الزوار.",
+    note: "هذا الجهاز مسجّل الآن وسيستقبل تنبيهات الزوار.",
   },
   default: {
     label: "تفعيل الإشعارات",
@@ -73,6 +74,11 @@ const PUSH_UI = {
     label: "أضف إعدادات Firebase",
     disabled: true,
     note: "أكمل مفاتيح Firebase في js/config.js لتفعيل الإشعارات.",
+  },
+  vapid: {
+    label: "مفتاح VAPID ناقص",
+    disabled: true,
+    note: "ألصق مفتاح Web Push من Firebase في js/config.js ثم أعد تحميل الصفحة.",
   },
   error: {
     label: "إعادة محاولة التفعيل",
@@ -193,24 +199,59 @@ async function setupPush() {
       toast(`${title} — ${body}`, { type: "info", duration: 6000 });
       navigator.vibrate?.([80, 50, 80]);
     },
-    onState: updatePushUI,
+    onState: (pushState, detail) => {
+      state.pushDetail = detail;
+      updatePushUI(pushState, detail);
+    },
   });
 
   els.pushBtn.addEventListener("click", async () => {
     if (!state.push) return;
     const ok = await state.push.enable();
+    const pushState = state.push.getState();
+
     if (ok) {
-      toast("تم تفعيل الإشعارات على هذا الجهاز", { type: "success" });
-    } else if (
-      "Notification" in window &&
-      Notification.permission === "denied"
-    ) {
+      toast("تم تفعيل الإشعارات وحفظ هذا الجهاز ✓", { type: "success" });
+    } else if (pushState === "denied") {
       toast("الإشعارات محظورة من إعدادات المتصفح.", { type: "error" });
+    } else if (pushState === "error") {
+      toast(pushErrorMessage(state.pushDetail), {
+        type: "error",
+        duration: 6500,
+      });
     }
   });
 }
 
-function updatePushUI(pushState) {
+function pushErrorMessage(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || error || "");
+
+  if (code.includes("MISSING_VAPID_KEY") || message.includes("MISSING_VAPID_KEY")) {
+    return "مفتاح VAPID غير موجود. ألصقه في js/config.js ثم أعد تحميل الصفحة.";
+  }
+  if (message.includes("NO_SERVICE_WORKER")) {
+    return "تعذّر تشغيل service worker. افتح الموقع عبر HTTPS وأعد المحاولة.";
+  }
+  if (message.includes("NO_FCM_TOKEN")) {
+    return "لم يُرجع Firebase رمزاً للجهاز. تحقّق من إعدادات FCM وVAPID.";
+  }
+  if (message.includes("SUPABASE_NOT_CONFIGURED")) {
+    return "Supabase غير مهيأ، لذلك لا يمكن حفظ رمز الجهاز.";
+  }
+  if (/row-level security|permission denied/i.test(message)) {
+    return "قاعدة البيانات رفضت حفظ الجهاز. راجع سياسات RLS لجدول devices.";
+  }
+  if (message.includes("FIREBASE_NOT_CONFIGURED")) {
+    return "إعدادات Firebase غير مكتملة في js/config.js.";
+  }
+
+  return message
+    ? `تعذّر تسجيل الجهاز: ${message.slice(0, 140)}`
+    : "تعذّر تسجيل الجهاز. تحقّق من إعدادات FCM وحاول مجدداً.";
+}
+
+function updatePushUI(pushState, detail) {
   const ui = PUSH_UI[pushState] || PUSH_UI.idle;
 
   if (els.pushLabel) els.pushLabel.textContent = ui.label;
@@ -218,7 +259,10 @@ function updatePushUI(pushState) {
     els.pushBtn.disabled = Boolean(ui.disabled);
     els.pushBtn.classList.toggle("is-on", Boolean(ui.on));
   }
-  if (els.pushNote) els.pushNote.textContent = ui.note;
+  if (els.pushNote) {
+    els.pushNote.textContent =
+      pushState === "error" ? pushErrorMessage(detail) : ui.note;
+  }
 }
 
 /* -------------------------------------------------------------------------

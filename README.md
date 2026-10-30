@@ -91,7 +91,15 @@ Open the admin page in one tab and the visitor page in another. Change the statu
 3. **Cloud Messaging → Web Push certificates → Generate key pair** and paste the public key into `vapidKey`.
 4. **Project settings → Service accounts → Generate new private key**. Keep this JSON file private. You will use `project_id`, `client_email`, and `private_key` for the Edge Function.
 
-The app requests notification permission from the **“تفعيل الإشعارات”** button on the admin page. The token is stored in the `devices` table with `role = 'admin'`.
+The app requests notification permission from the **“تفعيل الإشعارات”** button on the admin page. After permission is granted it calls `getToken()` and inserts the result into `public.devices`:
+
+```js
+{ token, role: "admin", user_agent, last_seen_at }
+```
+
+If the same browser registers again, the existing row is refreshed instead of duplicated.
+
+> `vapidKey` is required. If it is missing or still a placeholder, the admin panel shows **“مفتاح VAPID ناقص”** and never calls `getToken()`, so no row will appear in `devices`.
 
 > On iPhone/iPad, web push works only after the PWA is added to the Home Screen (iOS 16.4+).
 
@@ -228,7 +236,7 @@ Recommended headers:
 /manifest*.webmanifest Content-Type: application/manifest+json
 ```
 
-After changing `js/config.js`, `sw.js`, or any cached asset, bump `CACHE_VERSION` in `sw.js` so clients pick up the new version.
+After changing `js/config.js`, `sw.js`, or any cached asset, bump `CACHE_VERSION` in `sw.js` so clients pick up the new version. `js/config.js` is fetched network-first (cache fallback only when offline), so credential changes apply on the next reload even before the cache version changes.
 
 ### PWA install
 
@@ -272,6 +280,20 @@ The Edge Function already verifies `x-webhook-secret` and uses the service-role 
 - Check `supabase functions logs send-push` for FCM errors.
 - Ensure the deployed function has `--no-verify-jwt` and the Vault URL is correct.
 - FCM tokens are removed automatically when Google reports them as unregistered.
+
+**Notifications are enabled but `devices` is empty**
+- Add the real `vapidKey` in `js/config.js` (Firebase → Project settings → Cloud Messaging → Web Push certificates). Without it the app intentionally does not call `getToken()`.
+- Reload once after editing `js/config.js`. Cache `roomset-v1.2.0` fetches `config.js` network-first, but an already-installed worker may need a reload to update.
+- Open DevTools → Console and look for `[RoomSet] FCM token acquired` followed by `[RoomSet] FCM token saved to public.devices`.
+- If you see a row-level-security error, re-run the `devices` insert policy from `supabase/schema.sql`.
+- Verify from the Supabase Table Editor (the anon client intentionally has no SELECT policy on `devices`):
+
+```sql
+select id, role, left(token, 12) as token_prefix, user_agent,
+       created_at, last_seen_at
+from public.devices
+order by created_at desc;
+```
 
 **“RATE_LIMITED” toast**
 - The Postgres trigger allows one ping every 8 seconds. The client cooldown is 20 seconds by default; adjust both if needed.

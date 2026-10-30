@@ -12,8 +12,9 @@ import {
 
 import {
   getServiceWorkerRegistration,
+  hasVapidKey,
   initServiceWorker,
-  isFirebaseConfigured,
+  isFirebaseAppConfigured,
   saveDeviceToken,
 } from "./core.js";
 
@@ -37,7 +38,7 @@ function firebaseConfig() {
 
 function ensureMessaging() {
   if (messaging) return messaging;
-  if (!isFirebaseConfigured) throw new Error("FIREBASE_NOT_CONFIGURED");
+  if (!isFirebaseAppConfigured) throw new Error("FIREBASE_NOT_CONFIGURED");
 
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig());
   messaging = getMessaging(app);
@@ -49,11 +50,19 @@ function ensureMessaging() {
   return messaging;
 }
 
+/**
+ * Ask FCM for this device's registration token and persist it in Supabase.
+ * This is the only place that calls getToken(), so every successful
+ * registration goes through the devices-table insert.
+ */
 async function registerToken() {
   if (registrationPromise) return registrationPromise;
 
   registrationPromise = (async () => {
-    const sw = (await initServiceWorker()) || (await getServiceWorkerRegistration());
+    if (!hasVapidKey) throw new Error("MISSING_VAPID_KEY");
+
+    const sw =
+      (await initServiceWorker()) || (await getServiceWorkerRegistration());
     if (!sw) throw new Error("NO_SERVICE_WORKER");
 
     const token = await getToken(ensureMessaging(), {
@@ -62,7 +71,12 @@ async function registerToken() {
     });
 
     if (!token) throw new Error("NO_FCM_TOKEN");
-    await saveDeviceToken(token, "admin");
+    console.info("[RoomSet] FCM token acquired:", `${token.slice(0, 12)}…`);
+
+    const saved = await saveDeviceToken(token, "admin");
+    if (saved?.demo) throw new Error("SUPABASE_NOT_CONFIGURED");
+
+    console.info("[RoomSet] FCM token saved to public.devices.");
     return token;
   })();
 
@@ -80,8 +94,13 @@ async function registerToken() {
 export async function initPush(options = {}) {
   listeners = { ...listeners, ...options };
 
-  if (!isFirebaseConfigured) {
+  if (!isFirebaseAppConfigured) {
     setState("unconfigured");
+    return { enable: async () => false, getState: () => currentState };
+  }
+
+  if (!hasVapidKey) {
+    setState("vapid");
     return { enable: async () => false, getState: () => currentState };
   }
 
@@ -133,6 +152,7 @@ export async function initPush(options = {}) {
     }
 
     try {
+      // Permission is granted — fetch the token and insert it into Supabase.
       await registerToken();
       setState("granted");
       return true;

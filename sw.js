@@ -3,11 +3,14 @@
    Handles: app-shell caching, offline fallback, and FCM background messages.
    ========================================================================= */
 
+const CACHE_VERSION = "roomset-v1.2.0";
+
+// Config changes must not be masked by the old app-shell cache. The query
+// string forces a fresh fetch when the service worker updates.
 importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
-importScripts("./js/config.js");
+importScripts("./js/config.js?v=" + CACHE_VERSION);
 
-const CACHE_VERSION = "roomset-v1.1.0";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
@@ -100,6 +103,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Never serve a stale config from the cache-first app shell.
+  if (
+    url.origin === self.location.origin &&
+    url.pathname.endsWith("/js/config.js")
+  ) {
+    event.respondWith(handleConfig(request));
+    return;
+  }
+
   if (url.origin === self.location.origin || CDN_HOSTS.has(url.hostname)) {
     handleAsset(event);
   }
@@ -125,6 +137,31 @@ async function handleNavigation(request) {
       { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
     );
   }
+}
+
+function handleConfig(request) {
+  return (async () => {
+    const cache = await caches.open(CACHE_VERSION);
+
+    try {
+      const response = await fetch(request, { cache: "no-store" });
+      if (response && response.ok) {
+        await cache.put(request, response.clone()).catch(() => {});
+        return response;
+      }
+
+      const cached = await cache.match(request, { ignoreSearch: true });
+      return cached || response;
+    } catch {
+      const cached = await cache.match(request, { ignoreSearch: true });
+      if (cached) return cached;
+
+      return new Response("", {
+        status: 504,
+        statusText: "Offline",
+      });
+    }
+  })();
 }
 
 function handleAsset(event) {

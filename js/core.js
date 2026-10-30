@@ -70,16 +70,20 @@ export const isSupabaseConfigured = Boolean(
     !PLACEHOLDER.test(SB.anonKey),
 );
 
-export const isFirebaseConfigured = Boolean(
-  FB.apiKey &&
-    FB.projectId &&
-    FB.messagingSenderId &&
-    FB.appId &&
-    FB.vapidKey &&
-    !Object.values(FB).some(
-      (value) => typeof value === "string" && PLACEHOLDER.test(value),
-    ),
+function isRealFirebaseValue(value) {
+  return typeof value === "string" && value.length > 0 && !PLACEHOLDER.test(value);
+}
+
+// Firebase itself can initialise with the web app config. Web push additionally
+// needs the VAPID key pair from Cloud Messaging -> Web Push certificates.
+export const isFirebaseAppConfigured = Boolean(
+  isRealFirebaseValue(FB.apiKey) &&
+    isRealFirebaseValue(FB.projectId) &&
+    isRealFirebaseValue(FB.messagingSenderId) &&
+    isRealFirebaseValue(FB.appId),
 );
+
+export const hasVapidKey = isRealFirebaseValue(FB.vapidKey);
 
 /* -------------------------------------------------------------------------
    Supabase client
@@ -329,18 +333,35 @@ export async function sendPing(message = null, type = "ping") {
 export async function saveDeviceToken(token, role = "admin") {
   if (!supabase || !token) return { demo: true };
 
-  const { error } = await supabase.from(TABLES.devices).upsert(
-    {
-      token,
-      role,
-      user_agent: (navigator.userAgent || "").slice(0, 300),
-      last_seen_at: new Date().toISOString(),
-    },
-    { onConflict: "token" },
-  );
+  const device = {
+    token,
+    role,
+    user_agent: (navigator.userAgent || "").slice(0, 300),
+    last_seen_at: new Date().toISOString(),
+  };
 
-  if (error) throw error;
-  return { ok: true };
+  // Insert first: this is the normal path for a newly registered device.
+  const { error } = await supabase.from(TABLES.devices).insert(device);
+
+  if (!error) return { ok: true, inserted: true };
+
+  // `token` is unique. If this browser has registered before, refresh the
+  // existing row instead of failing the whole FCM registration.
+  if (error.code === "23505" || /duplicate key/i.test(error.message || "")) {
+    const { error: updateError } = await supabase
+      .from(TABLES.devices)
+      .update({
+        role: device.role,
+        user_agent: device.user_agent,
+        last_seen_at: device.last_seen_at,
+      })
+      .eq("token", token);
+
+    if (updateError) throw updateError;
+    return { ok: true, updated: true };
+  }
+
+  throw error;
 }
 
 /* -------------------------------------------------------------------------
@@ -402,6 +423,16 @@ export async function initServiceWorker() {
     swRegistration = await navigator.serviceWorker.register("./sw.js", {
       scope: "./",
     });
+
+    // getToken() needs an active worker. On a first install the registration
+    // can still be installing, so wait briefly (but never block forever).
+    if (!swRegistration.active) {
+      await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((resolve) => window.setTimeout(resolve, 5000)),
+      ]);
+    }
+
     return swRegistration;
   } catch (error) {
     console.warn("[RoomSet] service worker registration failed:", error);

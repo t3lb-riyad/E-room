@@ -24,6 +24,10 @@ var APP_CONFIG = {
     messagingSenderId: "1018926551788",
     appId: "1:1018926551788:web:68a908aaec55087e6f0bc9",
     measurementId: "G-CLX74W8YK7",
+    // REQUIRED for web push. Firebase console -> Project settings ->
+    // Cloud Messaging -> Web Push certificates -> Generate key pair.
+    // Paste the "Key pair" public key here (starts with B...).
+    vapidKey: "BIcI_kIiGCZmQcAI_6_9s6thVgkGyxegW9vjY2Zpzoj62OKzW-zXY5GtpIrlY_Fbfirja10ZEBHN1MzySQ9z-YQ",
   },
 
   /* ---- App behaviour -------------------------------------------------- */
