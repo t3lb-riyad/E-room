@@ -53,7 +53,7 @@ const PUSH_UI = {
     label: "الإشعارات مفعّلة",
     disabled: true,
     on: true,
-    note: "هذا الجهاز مسجّل الآن وسيستقبل تنبيهات الزوار.",
+    note: "",
   },
   default: {
     label: "تفعيل الإشعارات",
