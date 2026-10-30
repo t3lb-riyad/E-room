@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>غير متصل — حالة الغرفة</title>
+  <meta name="theme-color" content="#EFE3CE">
+  <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="page page--offline">
+  <div class="ambient" aria-hidden="true"></div>
+
+  <main class="offline">
+    <div class="offline-card">
+      <span class="offline-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 8.5a16 16 0 0120 0"/>
+          <path d="M5 12.2a11 11 0 0114 0"/>
+          <path d="M8.5 15.8a6 6 0 017 0"/>
+          <path d="M12 19.5h.01"/>
+          <path d="M3 3l18 18"/>
+        </svg>
+      </span>
+
+      <h1>لا يوجد اتصال</h1>
+      <p>تعذّر الوصول إلى الشبكة. تحقّق من اتصالك ثم أعد المحاولة — ستعود حالتك المحفوظة للظهور فوراً.</p>
+
+      <button class="offline-btn" type="button" onclick="location.reload()">إعادة المحاولة</button>
+      <a class="offline-link" href="./index.html">العودة إلى لوحة التحكم</a>
+    </div>
+  </main>
+</body>
+</html>
