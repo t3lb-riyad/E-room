@@ -302,6 +302,18 @@ order by created_at desc;
   supabase functions deploy send-push --no-verify-jwt
   ```
 
+**`send-push` logs 400: “Invalid value at 'message.data[N].value' (TYPE_STRING)”**
+- FCM HTTP v1 requires **every** value in `message.data` to be a JSON string. A numeric value (for example a `bigint` notification id coming from the webhook `record`) is rejected.
+- The function now coerces all `data` values with `String()` before sending, so `notificationId` works whether the table uses `uuid` or `bigint`.
+- Redeploy after pulling the fix:
+  ```bash
+  supabase functions deploy send-push --no-verify-jwt
+  ```
+- The failure log now includes the exact offending field:
+  ```
+  [send-push] delivery failed { status: 400, field: 'message.data[3].value', ... }
+  ```
+
 **“RATE_LIMITED” toast**
 - The Postgres trigger allows one ping every 8 seconds. The client cooldown is 20 seconds by default; adjust both if needed.
 

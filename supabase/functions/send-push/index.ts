@@ -35,7 +35,7 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const encoder = new TextEncoder();
 
 interface PushRecord {
-  id?: string;
+  id?: string | number;
   type?: string;
   message?: string | null;
   created_at?: string;
@@ -45,6 +45,7 @@ interface PushResult {
   ok: boolean;
   invalid?: boolean;
   status?: number;
+  field?: string;
   error?: string;
 }
 
@@ -158,6 +159,30 @@ async function getAccessToken(): Promise<string> {
    FCM send
    ------------------------------------------------------------------------- */
 
+/**
+ * FCM HTTP v1 requires every value in `message.data` to be a JSON string.
+ * Anything else (a number, boolean, null, nested object…) is rejected with
+ * `Invalid value at 'message.data[N].value' (TYPE_STRING)`.
+ */
+function dataString(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+function absoluteSiteUrl(path: string): string | undefined {
+  if (!SITE_URL || !/^https:\/\//i.test(SITE_URL)) return undefined;
+  return `${SITE_URL}/${path.replace(/^\/+/, "")}`;
+}
+
 async function sendToToken(
   token: string,
   accessToken: string,
@@ -168,11 +193,23 @@ async function sendToToken(
     (record.message && String(record.message).trim()) ||
     "أحدهم يطلب انتباهك الآن.";
 
-  const link = SITE_URL ? `${SITE_URL}/index.html` : undefined;
+  const link = absoluteSiteUrl("index.html");
+  const icon = absoluteSiteUrl("icons/icon-192.png");
+  const badge = absoluteSiteUrl("icons/badge-72.png");
+
+  // Every value must be a string — this is the most common cause of the
+  // 400 "Invalid value at 'message.data[N].value' (TYPE_STRING)" error.
+  const data: Record<string, string> = {
+    title: dataString(title),
+    body: dataString(body),
+    type: dataString(record.type || "ping"),
+    notificationId: dataString(record.id),
+    url: dataString(link || "./index.html"),
+  };
 
   const webpushNotification: Record<string, unknown> = {
-    title,
-    body,
+    title: dataString(title),
+    body: dataString(body),
     dir: "rtl",
     lang: "ar",
     vibrate: [120, 60, 120],
@@ -180,21 +217,13 @@ async function sendToToken(
     renotify: true,
   };
 
-  if (SITE_URL) {
-    webpushNotification.icon = `${SITE_URL}/icons/icon-192.png`;
-    webpushNotification.badge = `${SITE_URL}/icons/badge-72.png`;
-  }
+  if (icon) webpushNotification.icon = icon;
+  if (badge) webpushNotification.badge = badge;
 
   const message: Record<string, unknown> = {
     token,
-    notification: { title, body },
-    data: {
-      title,
-      body,
-      type: record.type || "ping",
-      notificationId: record.id || "",
-      url: "./index.html",
-    },
+    notification: { title: dataString(title), body: dataString(body) },
+    data,
     webpush: {
       headers: { Urgency: "high", TTL: "3600" },
       notification: webpushNotification,
@@ -224,8 +253,18 @@ async function sendToToken(
     // keep raw text
   }
 
+  // Pull out the exact offending field so the logs are actionable.
+  const details: any[] = Array.isArray(payload?.error?.details)
+    ? payload.error.details
+    : [];
+  const violation = details
+    .flatMap((detail) => detail?.fieldViolations ?? [])
+    .find((item) => item?.field || item?.description);
+  const field: string = violation?.field ?? "";
+  const description: string = violation?.description ?? "";
+
   const errorCode: string =
-    payload?.error?.details?.[0]?.errorCode ||
+    details.find((detail) => detail?.errorCode)?.errorCode ||
     payload?.error?.status ||
     "";
   const invalid =
@@ -237,7 +276,8 @@ async function sendToToken(
     ok: false,
     invalid,
     status: response.status,
-    error: text.slice(0, 400),
+    field,
+    error: (field ? `${field}: ${description || text}` : text).slice(0, 500),
   };
 }
 
@@ -335,6 +375,7 @@ Deno.serve(async (request) => {
       .forEach((item) => {
         console.error("[send-push] delivery failed", {
           status: item.result.status,
+          field: item.result.field || null,
           error: item.result.error,
           token: `${item.token.slice(0, 12)}…`,
         });
